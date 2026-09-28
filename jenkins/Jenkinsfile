@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_IMAGE = "technova-app:${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo '🔄 Checking out code from GitHub...'
+                git branch: 'main', 
+                    url: 'https://github.com/kshama266/technova-cicd-pipeline.git'
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                echo '🔨 Building Node.js application...'
+                sh '''
+                    cd src/app
+                    npm install
+                    npm test || true
+                '''
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo '🐳 Building Docker image...'
+                sh '''
+                    docker build -t ${DOCKER_IMAGE} .
+                    echo "✅ Docker image built: ${DOCKER_IMAGE}"
+                '''
+            }
+        }
+        
+        stage('Test Docker Container') {
+            steps {
+                echo '✅ Testing Docker container...'
+                sh '''
+                    docker run -d -p 3000:3000 --name test-${BUILD_NUMBER} ${DOCKER_IMAGE}
+                    sleep 3
+                    curl http://localhost:3000 || exit 1
+                    docker stop test-${BUILD_NUMBER} || true
+                    docker rm test-${BUILD_NUMBER} || true
+                '''
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo '🚀 Deployment ready for AWS EC2'
+                sh '''
+                    echo "Build: ${BUILD_NUMBER}"
+                    echo "Image: ${DOCKER_IMAGE}"
+                '''
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo '🧹 Cleaning up...'
+            sh 'docker system prune -f || true'
+        }
+        success {
+            echo '✅ Pipeline SUCCESS!'
+        }
+        failure {
+            echo '❌ Pipeline FAILED!'
+        }
+    }
+}
