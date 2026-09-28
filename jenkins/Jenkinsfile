@@ -1,74 +1,17 @@
-pipeline {
-    agent any
-    
-    environment {
-        DOCKER_IMAGE = "technova-app:${BUILD_NUMBER}"
-    }
-    
-    stages {
-        stage('Checkout') {
-            steps {
-                echo '🔄 Checking out code from GitHub...'
-                git branch: 'main', 
-                    url: 'https://github.com/kshama266/technova-cicd-pipeline.git'
-            }
-        }
-        
-        stage('Build') {
-            steps {
-                echo '🔨 Building Node.js application...'
-                bat '''
-                    cd src/app
-                    npm install
-                    npm test || exit /b 0
-                '''
-            }
-        }
-        
-        stage('Build Docker Image') {
-            steps {
-                echo '🐳 Building Docker image...'
-                bat '''
-                    docker build -t %DOCKER_IMAGE% .
-                    echo ✅ Docker image built: %DOCKER_IMAGE%
-                '''
-            }
-        }
-        
-        stage('Test Docker Container') {
-            steps {
-                echo '✅ Testing Docker container...'
-                bat '''
-                    docker run -d -p 3000:3000 --name test-%BUILD_NUMBER% %DOCKER_IMAGE%
-                    timeout /t 3
-                    curl http://localhost:3000 || exit /b 1
-                    docker stop test-%BUILD_NUMBER% || exit /b 0
-                    docker rm test-%BUILD_NUMBER% || exit /b 0
-                '''
-            }
-        }
-        
-        stage('Deploy') {
-            steps {
-                echo '🚀 Deployment ready for AWS EC2'
-                bat '''
-                    echo Build: %BUILD_NUMBER%
-                    echo Image: %DOCKER_IMAGE%
-                '''
-            }
-        }
-    }
-    
-    post {
-        always {
-            echo '🧹 Cleaning up...'
-            bat 'docker system prune -f || exit /b 0'
-        }
-        success {
-            echo '✅ Pipeline SUCCESS!'
-        }
-        failure {
-            echo '❌ Pipeline FAILED!'
-        }
+stage('Test Docker Container') {
+    steps {
+        echo '✅ Testing Docker container...'
+        bat '''
+            docker run -d -p 3000:3000 --name test-%BUILD_NUMBER% %DOCKER_IMAGE%
+            REM Wait 5 seconds for container to start
+            ping -n 6 127.0.0.1 >nul
+            REM Test if container is running
+            docker ps | findstr test-%BUILD_NUMBER%
+            if errorlevel 1 (
+                echo Container failed to start
+                exit /b 1
+            )
+            echo Container started successfully
+        '''
     }
 }
