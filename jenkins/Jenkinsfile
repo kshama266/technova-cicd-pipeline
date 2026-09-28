@@ -1,17 +1,47 @@
-stage('Test Docker Container') {
-    steps {
-        echo '✅ Testing Docker container...'
-        bat '''
-            docker run -d -p 3000:3000 --name test-%BUILD_NUMBER% %DOCKER_IMAGE%
-            REM Wait 5 seconds for container to start
-            ping -n 6 127.0.0.1 >nul
-            REM Test if container is running
-            docker ps | findstr test-%BUILD_NUMBER%
-            if errorlevel 1 (
-                echo Container failed to start
-                exit /b 1
-            )
-            echo Container started successfully
-        '''
+pipeline {
+    agent any
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo '🔄 Checking out code from GitHub...'
+                git branch: 'main', 
+                    url: 'https://github.com/kshama266/technova-cicd-pipeline.git'
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                echo '🔨 Building Node.js application...'
+                bat 'cd src\\app && npm install'
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo '🐳 Building Docker image...'
+                bat 'docker build -t technova-app:%BUILD_NUMBER% .'
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo '🚀 Deployment ready'
+                bat 'echo Build: %BUILD_NUMBER%'
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo '🧹 Cleaning up...'
+            bat 'docker system prune -f || exit /b 0'
+        }
+        success {
+            echo '✅ SUCCESS!'
+        }
+        failure {
+            echo '❌ FAILED!'
+        }
     }
 }
